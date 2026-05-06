@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WiFi Scanner Pro</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-left">
+                <div class="logo">
+                    <svg class="wifi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+                        <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+                        <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+                        <circle cx="12" cy="20" r="1"/>
+                    </svg>
+                    <h1>WiFi Scanner <span class="pro-badge">PRO</span></h1>
+                </div>
+                <p class="subtitle">Advanced Network Discovery & Analysis</p>
+            </div>
+            <div class="header-right">
+                <div class="header-controls">
+                    <button id="themeToggle" class="icon-btn" title="Toggle Theme">
+                        <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="5"/>
+                            <line x1="12" y1="1" x2="12" y2="3"/>
+                            <line x1="12" y1="21" x2="12" y2="23"/>
+                            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                            <line x1="1" y1="12" x2="3" y2="12"/>
+                            <line x1="21" y1="12" x2="23" y2="12"/>
+                            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                        </svg>
+                        <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Controls Bar -->
+        <div class="controls-bar">
+            <div class="controls-left">
+                <button id="scanBtn" class="btn btn-primary scan-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="23 4 23 10 17 10"/>
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                    </svg>
+                    <span>Scan Networks</span>
+                </button>
+                <div class="auto-refresh">
+                    <label class="toggle-label">
+                        <input type="checkbox" id="autoRefresh">
+                        <span class="toggle-switch"></span>
+                        <span>Auto-Refresh</span>
+                    </label>
+                    <select id="refreshInterval" class="select-control">
+                        <option value="5">5s</option>
+                        <option value="10" selected>10s</option>
+                        <option value="30">30s</option>
+                        <option value="60">60s</option>
+                    </select>
+                </div>
+            </div>
+            <div class="controls-right">
+                <div class="search-box">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <input type="text" id="searchInput" placeholder="Search networks...">
+                </div>
+                <div class="filter-group">
+                    <select id="bandFilter" class="select-control">
+                        <option value="all">All Bands</option>
+                        <option value="2.4GHz">2.4 GHz</option>
+                        <option value="5GHz">5 GHz</option>
+                    </select>
+                    <select id="encFilter" class="select-control">
+                        <option value="all">All Security</option>
+                        <option value="Open">Open</option>
+                        <option value="WPA">WPA</option>
+                        <option value="WPA2">WPA2</option>
+                        <option value="WPA3">WPA3</option>
+                    </select>
+                    <select id="sortBy" class="select-control">
+                        <option value="signal">Sort: Signal</option>
+                        <option value="ssid">Sort: Name</option>
+                        <option value="channel">Sort: Channel</option>
+                        <option value="encryption">Sort: Security</option>
+                    </select>
+                </div>
+                <div class="export-group">
+                    <button id="exportCsv" class="btn btn-outline btn-sm" title="Export CSV">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        CSV
+                    </button>
+                    <button id="exportJson" class="btn btn-outline btn-sm" title="Export JSON">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        JSON
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-card">
+                <div class="stat-icon total">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+                        <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+                        <circle cx="12" cy="20" r="1"/>
+                    </svg>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-value" id="totalNetworks">--</span>
+                    <span class="stat-label">Networks Found</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon secured">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-value" id="securedNetworks">--</span>
+                    <span class="stat-label">Secured</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon open">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+                    </svg>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-value" id="openNetworks">--</span>
+                    <span class="stat-label">Open</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon signal">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                    </svg>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-value" id="avgSignal">--</span>
+                    <span class="stat-label">Avg Signal (dBm)</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon band-24">
+                    <span class="band-label">2.4</span>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-value" id="band24Count">--</span>
+                    <span class="stat-label">2.4 GHz</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon band-5">
+                    <span class="band-label">5G</span>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-value" id="band5Count">--</span>
+                    <span class="stat-label">5 GHz</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Navigation -->
+        <div class="tab-nav">
+            <button class="tab-btn active" data-tab="networks">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <rect x="3" y="3" width="7" height="7"/>
+                    <rect x="14" y="3" width="7" height="7"/>
+                    <rect x="14" y="14" width="7" height="7"/>
+                    <rect x="3" y="14" width="7" height="7"/>
+                </svg>
+                Networks
+            </button>
+            <button class="tab-btn" data-tab="charts">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <line x1="18" y1="20" x2="18" y2="10"/>
+                    <line x1="12" y1="20" x2="12" y2="4"/>
+                    <line x1="6" y1="20" x2="6" y2="14"/>
+                </svg>
+                Analytics
+            </button>
+            <button class="tab-btn" data-tab="channels">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                </svg>
+                Channels
+            </button>
+            <button class="tab-btn" data-tab="history">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                </svg>
+                History
+            </button>
+            <button class="tab-btn" data-tab="stress">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                </svg>
+                Stress Test
+            </button>
+            <button class="tab-btn" data-tab="bandwidth">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+                Bandwidth
+            </button>
+        </div>
+
+        <!-- Tab Content -->
+        <div class="tab-content">
+            <!-- Networks Tab -->
+            <div class="tab-pane active" id="tab-networks">
+                <div class="network-grid" id="networkGrid">
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="64" height="64">
+                            <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+                            <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+                            <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+                            <circle cx="12" cy="20" r="1"/>
+                        </svg>
+                        <h3>No Networks Scanned</h3>
+                        <p>Click "Scan Networks" to discover nearby WiFi networks</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Tab -->
+            <div class="tab-pane" id="tab-charts">
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h3>Signal Strength Distribution</h3>
+                        <canvas id="signalChart"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Encryption Types</h3>
+                        <canvas id="encryptionChart"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Band Distribution</h3>
+                        <canvas id="bandChart"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Vendor Distribution</h3>
+                        <canvas id="vendorChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Channels Tab -->
+            <div class="tab-pane" id="tab-channels">
+                <div class="charts-grid">
+                    <div class="chart-card wide">
+                        <h3>2.4 GHz Channel Congestion</h3>
+                        <canvas id="channel24Chart"></canvas>
+                    </div>
+                    <div class="chart-card wide">
+                        <h3>5 GHz Channel Congestion</h3>
+                        <canvas id="channel5Chart"></canvas>
+                    </div>
+                    <div class="channel-recommendation" id="channelRecommendation">
+                        <h3>Channel Recommendations</h3>
+                        <div class="recommendation-content">
+                            <p>Run a scan to see channel recommendations</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- History Tab -->
+            <div class="tab-pane" id="tab-history">
+                <div class="charts-grid">
+                    <div class="chart-card wide">
+                        <h3>Networks Found Over Time</h3>
+                        <canvas id="historyChart"></canvas>
+                    </div>
+                    <div class="chart-card wide">
+                        <h3>Signal Tracking (Select a network)</h3>
+                        <div class="signal-track-controls">
+                            <select id="signalTrackSelect" class="select-control">
+                                <option value="">-- Select Network --</option>
+                            </select>
+                        </div>
+                        <canvas id="signalTrackChart"></canvas>
+                    </div>
+                </div>
+                <div class="history-table-container">
+                    <h3>Scan History Log</h3>
+                    <table class="history-table" id="historyTable">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Timestamp</th>
+                                <th>Networks Found</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+            <!-- Stress Test Tab -->
+            <div class="tab-pane" id="tab-stress">
+                <div class="stress-test-header">
+                    <div class="stress-info">
+                        <h3>WiFi Network Stress Test</h3>
+                        <p>Test your network's resilience, connection capacity, and performance under load.</p>
+                        <p class="stress-note">Tests run against your local gateway (router) only.</p>
+                    </div>
+                    <div class="stress-controls">
+                        <div class="stress-target">
+                            <label>Target Gateway:</label>
+                            <input type="text" id="stressHost" placeholder="Auto-detect" class="select-control">
+                            <button id="detectGateway" class="btn btn-outline btn-sm">Detect</button>
+                        </div>
+                        <button id="runFullStress" class="btn btn-primary">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                            </svg>
+                            <span>Run Full Stress Test</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Score Card -->
+                <div class="stress-score-card" id="stressScoreCard" style="display:none;">
+                    <div class="score-circle" id="scoreCircle">
+                        <span class="score-value" id="scoreValue">--</span>
+                        <span class="score-label">/ 100</span>
+                    </div>
+                    <div class="score-details">
+                        <div class="score-grade" id="scoreGrade">--</div>
+                        <div class="score-breakdown" id="scoreBreakdown"></div>
+                    </div>
+                </div>
+
+                <!-- Individual Test Cards -->
+                <div class="stress-grid" id="stressGrid">
+                    <div class="stress-card" id="pingCard">
+                        <div class="stress-card-header">
+                            <h4>Ping Test</h4>
+                            <button class="btn btn-outline btn-sm run-test-btn" data-test="ping">Run</button>
+                        </div>
+                        <div class="stress-card-body">
+                            <p class="stress-placeholder">Measures basic latency and packet loss to your router</p>
+                        </div>
+                    </div>
+                    <div class="stress-card" id="rapidPingCard">
+                        <div class="stress-card-header">
+                            <h4>Rapid Ping Test</h4>
+                            <button class="btn btn-outline btn-sm run-test-btn" data-test="rapid-ping">Run</button>
+                        </div>
+                        <div class="stress-card-body">
+                            <p class="stress-placeholder">Fast interval pings with large packets to stress the connection</p>
+                        </div>
+                    </div>
+                    <div class="stress-card" id="connCard">
+                        <div class="stress-card-header">
+                            <h4>Connection Test</h4>
+                            <button class="btn btn-outline btn-sm run-test-btn" data-test="connections">Run</button>
+                        </div>
+                        <div class="stress-card-body">
+                            <p class="stress-placeholder">Tests how many simultaneous TCP connections your router handles</p>
+                        </div>
+                    </div>
+                    <div class="stress-card" id="latencyCard">
+                        <div class="stress-card-header">
+                            <h4>Latency Under Load</h4>
+                            <button class="btn btn-outline btn-sm run-test-btn" data-test="latency-load">Run</button>
+                        </div>
+                        <div class="stress-card-body">
+                            <p class="stress-placeholder">Measures latency degradation while generating network load</p>
+                        </div>
+                    </div>
+                    <div class="stress-card" id="bandwidthCard">
+                        <div class="stress-card-header">
+                            <h4>Bandwidth Estimate</h4>
+                            <button class="btn btn-outline btn-sm run-test-btn" data-test="bandwidth">Run</button>
+                        </div>
+                        <div class="stress-card-body">
+                            <p class="stress-placeholder">Estimates throughput capacity using varied packet sizes</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stress Test Progress -->
+                <div class="stress-progress" id="stressProgress" style="display:none;">
+                    <div class="progress-bar-container">
+                        <div class="progress-bar-fill" id="stressProgressBar"></div>
+                    </div>
+                    <p id="stressProgressText">Running tests...</p>
+                </div>
+            </div>
+
+            <!-- Bandwidth Manager Tab -->
+            <div class="tab-pane" id="tab-bandwidth">
+                <div class="stress-test-header">
+                    <div class="stress-info">
+                        <h3>Bandwidth Manager</h3>
+                        <p>Discover connected devices and control their download/upload speed limits.</p>
+                        <p class="stress-note">Speed limits use Linux Traffic Control (tc). Requires root for enforcement.</p>
+                    </div>
+                    <div class="stress-controls">
+                        <button id="discoverDevices" class="btn btn-primary">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                                <polyline points="23 4 23 10 17 10"/>
+                                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                            </svg>
+                            <span>Discover Devices</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Bandwidth Stats -->
+                <div class="bw-stats" id="bwStats">
+                    <div class="stat-card">
+                        <div class="stat-info">
+                            <span class="stat-value" id="bwTotalDevices">--</span>
+                            <span class="stat-label">Total Devices</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-info">
+                            <span class="stat-value" id="bwOnlineDevices">--</span>
+                            <span class="stat-label">Online</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-info">
+                            <span class="stat-value" id="bwLimitedDevices">--</span>
+                            <span class="stat-label">Speed Limited</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-info">
+                            <span class="stat-value" id="bwUnlimitedDevices">--</span>
+                            <span class="stat-label">Unlimited</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Device List -->
+                <div class="device-grid" id="deviceGrid">
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="64" height="64">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                            <circle cx="9" cy="7" r="4"/>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                        </svg>
+                        <h3>No Devices Discovered</h3>
+                        <p>Click "Discover Devices" to find connected devices on your network</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Speed Limit Modal -->
+        <div class="modal-overlay" id="speedModal">
+            <div class="modal">
+                <div class="modal-header">
+                    <h2 id="speedModalTitle">Set Speed Limit</h2>
+                    <button class="modal-close" id="speedModalClose">&times;</button>
+                </div>
+                <div class="modal-body" id="speedModalBody">
+                    <div class="speed-form">
+                        <input type="hidden" id="speedMac">
+                        <div class="speed-form-row">
+                            <label>Device:</label>
+                            <span id="speedDeviceName">--</span>
+                        </div>
+                        <div class="speed-form-row">
+                            <label>Download Limit (Kbps):</label>
+                            <input type="number" id="speedDown" class="select-control" min="0" max="1000000" placeholder="0 = Unlimited">
+                        </div>
+                        <div class="speed-presets">
+                            <button class="btn btn-outline btn-sm speed-preset" data-speed="512">512 Kbps</button>
+                            <button class="btn btn-outline btn-sm speed-preset" data-speed="1024">1 Mbps</button>
+                            <button class="btn btn-outline btn-sm speed-preset" data-speed="2048">2 Mbps</button>
+                            <button class="btn btn-outline btn-sm speed-preset" data-speed="5120">5 Mbps</button>
+                            <button class="btn btn-outline btn-sm speed-preset" data-speed="10240">10 Mbps</button>
+                            <button class="btn btn-outline btn-sm speed-preset" data-speed="20480">20 Mbps</button>
+                        </div>
+                        <div class="speed-form-row">
+                            <label>Upload Limit (Kbps):</label>
+                            <input type="number" id="speedUp" class="select-control" min="0" max="1000000" placeholder="0 = Unlimited">
+                        </div>
+                        <div class="speed-form-actions">
+                            <button id="applySpeedLimit" class="btn btn-primary">Apply Speed Limit</button>
+                            <button id="removeSpeedLimit" class="btn btn-outline">Remove Limit</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Network Detail Modal -->
+        <div class="modal-overlay" id="networkModal">
+            <div class="modal">
+                <div class="modal-header">
+                    <h2 id="modalTitle">Network Details</h2>
+                    <button class="modal-close" id="modalClose">&times;</button>
+                </div>
+                <div class="modal-body" id="modalBody">
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Container -->
+        <div class="toast-container" id="toastContainer"></div>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>WiFi Scanner Pro v1.0 &mdash; Built with FastAPI + Chart.js</p>
+        </footer>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
