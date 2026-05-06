@@ -27,6 +27,14 @@ from stress_test import (
     run_ping_test,
     run_rapid_ping_test,
 )
+from bandwidth_manager import (
+    discover_devices,
+    get_all_rules,
+    get_bandwidth_summary,
+    get_device_list,
+    remove_speed_limit,
+    set_speed_limit,
+)
 
 app = FastAPI(
     title="WiFi Scanner Pro",
@@ -323,6 +331,55 @@ async def stress_full(host: str | None = None):
     """Run the complete stress test suite."""
     result = await run_full_stress_test(host)
     return {"status": "success", "result": result}
+
+
+# --- Bandwidth Manager Endpoints ---
+
+
+@app.get("/api/devices")
+async def api_devices():
+    """Discover and list connected devices."""
+    import asyncio
+    loop = asyncio.get_event_loop()
+    devices = await loop.run_in_executor(None, discover_devices)
+    summary = get_bandwidth_summary()
+    return {
+        "status": "success",
+        "devices": [d.to_dict() for d in devices],
+        "summary": summary,
+    }
+
+
+@app.post("/api/devices/{mac}/speed")
+async def api_set_speed(
+    mac: str,
+    download_kbps: int = Query(default=0, ge=0, le=1000000),
+    upload_kbps: int = Query(default=0, ge=0, le=1000000),
+):
+    """Set speed limit for a device."""
+    result = set_speed_limit(mac, download_kbps, upload_kbps)
+    return result
+
+
+@app.delete("/api/devices/{mac}/speed")
+async def api_remove_speed(mac: str):
+    """Remove speed limit for a device."""
+    result = remove_speed_limit(mac)
+    return result
+
+
+@app.get("/api/devices/rules")
+async def api_speed_rules():
+    """Get all active speed rules."""
+    rules = get_all_rules()
+    return {"status": "success", "rules": rules}
+
+
+@app.get("/api/devices/summary")
+async def api_devices_summary():
+    """Get bandwidth management summary."""
+    summary = get_bandwidth_summary()
+    return {"status": "success", "summary": summary}
 
 
 if __name__ == "__main__":

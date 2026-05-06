@@ -1021,9 +1021,195 @@
       </div>`;
   }
 
+  // === Bandwidth Manager ===
+  function initBandwidthManager() {
+    const discoverBtn = document.getElementById("discoverDevices");
+    if (discoverBtn) discoverBtn.addEventListener("click", discoverDevicesAction);
+
+    // Speed modal controls
+    const closeBtn = document.getElementById("speedModalClose");
+    const applyBtn = document.getElementById("applySpeedLimit");
+    const removeBtn = document.getElementById("removeSpeedLimit");
+    const overlay = document.getElementById("speedModal");
+
+    if (closeBtn) closeBtn.addEventListener("click", closeSpeedModal);
+    if (overlay) overlay.addEventListener("click", (e) => { if (e.target === overlay) closeSpeedModal(); });
+    if (applyBtn) applyBtn.addEventListener("click", applySpeedLimitAction);
+    if (removeBtn) removeBtn.addEventListener("click", removeSpeedLimitAction);
+
+    // Speed presets
+    document.querySelectorAll(".speed-preset").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.getElementById("speedDown").value = btn.dataset.speed;
+      });
+    });
+  }
+
+  async function discoverDevicesAction() {
+    const btn = document.getElementById("discoverDevices");
+    btn.querySelector("span").textContent = "Scanning...";
+    btn.classList.add("scanning");
+    showToast("Discovering connected devices...", "info");
+
+    try {
+      const res = await fetch("/api/devices");
+      const data = await res.json();
+
+      if (data.status === "success") {
+        renderDevices(data.devices);
+        updateBwStats(data.summary);
+        showToast(`Found ${data.devices.length} devices`, "success");
+      }
+    } catch (err) {
+      showToast("Error: " + err.message, "error");
+    } finally {
+      btn.querySelector("span").textContent = "Discover Devices";
+      btn.classList.remove("scanning");
+    }
+  }
+
+  function updateBwStats(summary) {
+    document.getElementById("bwTotalDevices").textContent = summary.total_devices;
+    document.getElementById("bwOnlineDevices").textContent = summary.online_devices;
+    document.getElementById("bwLimitedDevices").textContent = summary.limited_devices;
+    document.getElementById("bwUnlimitedDevices").textContent = summary.unlimited_devices;
+  }
+
+  function renderDevices(devices) {
+    const grid = document.getElementById("deviceGrid");
+    if (!devices.length) {
+      grid.innerHTML = `<div class="empty-state"><h3>No Devices Found</h3><p>Try running discovery again</p></div>`;
+      return;
+    }
+
+    grid.innerHTML = devices
+      .sort((a, b) => {
+        if (a.status !== b.status) return a.status === "online" ? -1 : 1;
+        return a.ip.localeCompare(b.ip);
+      })
+      .map((dev) => {
+        const isLimited = dev.speed_limit_down > 0 || dev.speed_limit_up > 0;
+        const limitClass = isLimited ? "limited" : "unlimited";
+        const dlLabel = dev.speed_limit_down > 0 ? formatSpeed(dev.speed_limit_down) : "Unlimited";
+        const ulLabel = dev.speed_limit_up > 0 ? formatSpeed(dev.speed_limit_up) : "Unlimited";
+        const displayName = dev.hostname || dev.ip;
+
+        return `
+          <div class="device-card ${dev.status} ${limitClass}">
+            <div class="device-header">
+              <span class="device-name" title="${escapeHtml(displayName)}">${escapeHtml(displayName)}</span>
+              <span class="device-status ${dev.status}">
+                <span class="device-status-dot"></span>
+                ${dev.status}
+              </span>
+            </div>
+            <div class="device-details">
+              <div class="device-detail">
+                <span class="device-detail-label">IP Address</span>
+                <span class="device-detail-value">${escapeHtml(dev.ip)}</span>
+              </div>
+              <div class="device-detail">
+                <span class="device-detail-label">MAC</span>
+                <span class="device-detail-value">${escapeHtml(dev.mac)}</span>
+              </div>
+              <div class="device-detail">
+                <span class="device-detail-label">Vendor</span>
+                <span class="device-detail-value">${escapeHtml(dev.vendor)}</span>
+              </div>
+              <div class="device-detail">
+                <span class="device-detail-label">Speed</span>
+                <span class="device-detail-value">${isLimited ? "Limited" : "Full"}</span>
+              </div>
+            </div>
+            <div class="device-speed-info">
+              <span class="device-speed-badge ${isLimited ? "limited" : "unlimited"}">
+                DL: ${dlLabel}
+              </span>
+              <span class="device-speed-badge ${isLimited ? "limited" : "unlimited"}">
+                UL: ${ulLabel}
+              </span>
+            </div>
+            <div class="device-actions">
+              <button class="btn btn-primary btn-sm" onclick="window.__openSpeedModal('${escapeHtml(dev.mac)}', '${escapeHtml(displayName)}', ${dev.speed_limit_down}, ${dev.speed_limit_up})">
+                Set Speed
+              </button>
+              ${isLimited ? `<button class="btn btn-outline btn-sm" onclick="window.__removeSpeed('${escapeHtml(dev.mac)}')">Remove Limit</button>` : ""}
+            </div>
+          </div>`;
+      })
+      .join("");
+  }
+
+  function formatSpeed(kbps) {
+    if (kbps >= 1000) return (kbps / 1000).toFixed(1) + " Mbps";
+    return kbps + " Kbps";
+  }
+
+  function openSpeedModal(mac, name, currentDown, currentUp) {
+    document.getElementById("speedMac").value = mac;
+    document.getElementById("speedDeviceName").textContent = name;
+    document.getElementById("speedDown").value = currentDown || "";
+    document.getElementById("speedUp").value = currentUp || "";
+    document.getElementById("speedModal").classList.add("active");
+  }
+
+  function closeSpeedModal() {
+    document.getElementById("speedModal").classList.remove("active");
+  }
+
+  async function applySpeedLimitAction() {
+    const mac = document.getElementById("speedMac").value;
+    const down = parseInt(document.getElementById("speedDown").value) || 0;
+    const up = parseInt(document.getElementById("speedUp").value) || 0;
+
+    showToast("Applying speed limit...", "info");
+
+    try {
+      const res = await fetch(
+        `/api/devices/${encodeURIComponent(mac)}/speed?download_kbps=${down}&upload_kbps=${up}`,
+        { method: "POST" }
+      );
+      const data = await res.json();
+
+      if (data.status === "success") {
+        showToast(data.message, "success");
+        closeSpeedModal();
+        discoverDevicesAction();
+      } else {
+        showToast(data.message || "Failed", "error");
+      }
+    } catch (err) {
+      showToast("Error: " + err.message, "error");
+    }
+  }
+
+  async function removeSpeedLimitAction() {
+    const mac = document.getElementById("speedMac").value;
+    await removeSpeedForMac(mac);
+    closeSpeedModal();
+  }
+
+  async function removeSpeedForMac(mac) {
+    try {
+      const res = await fetch(`/api/devices/${encodeURIComponent(mac)}/speed`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.status === "success") {
+        showToast("Speed limit removed", "success");
+        discoverDevicesAction();
+      }
+    } catch (err) {
+      showToast("Error: " + err.message, "error");
+    }
+  }
+
+  // Expose to global for onclick handlers
+  window.__openSpeedModal = openSpeedModal;
+  window.__removeSpeed = removeSpeedForMac;
+
   // Boot
   document.addEventListener("DOMContentLoaded", function () {
     init();
     initStressTest();
+    initBandwidthManager();
   });
 })();
