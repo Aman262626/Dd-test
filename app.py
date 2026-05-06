@@ -18,6 +18,15 @@ from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 
 from scanner import WiFiNetwork, get_scan_summary, scan_networks
+from stress_test import (
+    get_default_gateway,
+    run_bandwidth_estimate_test,
+    run_concurrent_connection_test,
+    run_full_stress_test,
+    run_latency_under_load_test,
+    run_ping_test,
+    run_rapid_ping_test,
+)
 
 app = FastAPI(
     title="WiFi Scanner Pro",
@@ -240,6 +249,80 @@ async def channel_analysis():
         "recommended_2ghz": best_2g,
         "recommended_5ghz": best_5g,
     }
+
+
+# --- Stress Test Endpoints ---
+
+
+@app.get("/api/stress/gateway")
+async def stress_gateway():
+    """Get the detected default gateway."""
+    gateway = get_default_gateway()
+    return {"status": "success", "gateway": gateway}
+
+
+@app.get("/api/stress/ping")
+async def stress_ping(host: str | None = None, count: int = Query(default=20, ge=5, le=100)):
+    """Run a basic ping test against the gateway or specified host."""
+    if not host:
+        host = get_default_gateway() or "192.168.1.1"
+    import asyncio
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, run_ping_test, host, count)
+    from dataclasses import asdict
+    return {"status": "success", "result": asdict(result)}
+
+
+@app.get("/api/stress/rapid-ping")
+async def stress_rapid_ping(host: str | None = None, count: int = Query(default=50, ge=10, le=200)):
+    """Run a rapid ping stress test."""
+    if not host:
+        host = get_default_gateway() or "192.168.1.1"
+    import asyncio
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, run_rapid_ping_test, host, count)
+    from dataclasses import asdict
+    return {"status": "success", "result": asdict(result)}
+
+
+@app.get("/api/stress/connections")
+async def stress_connections(host: str | None = None, max_connections: int = Query(default=60, ge=10, le=200)):
+    """Test concurrent connection handling."""
+    if not host:
+        host = get_default_gateway() or "192.168.1.1"
+    import asyncio
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, run_concurrent_connection_test, host, max_connections)
+    return {"status": "success", "result": result}
+
+
+@app.get("/api/stress/latency-load")
+async def stress_latency_load(host: str | None = None, duration: int = Query(default=8, ge=3, le=30)):
+    """Measure latency under network load."""
+    if not host:
+        host = get_default_gateway() or "192.168.1.1"
+    import asyncio
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, run_latency_under_load_test, host, duration)
+    return {"status": "success", "result": result}
+
+
+@app.get("/api/stress/bandwidth")
+async def stress_bandwidth(host: str | None = None):
+    """Estimate bandwidth capacity."""
+    if not host:
+        host = get_default_gateway() or "192.168.1.1"
+    import asyncio
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, run_bandwidth_estimate_test, host)
+    return {"status": "success", "result": result}
+
+
+@app.get("/api/stress/full")
+async def stress_full(host: str | None = None):
+    """Run the complete stress test suite."""
+    result = await run_full_stress_test(host)
+    return {"status": "success", "result": result}
 
 
 if __name__ == "__main__":

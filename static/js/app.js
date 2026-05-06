@@ -714,6 +714,316 @@
     return div.innerHTML;
   }
 
+  // === Stress Test ===
+  function initStressTest() {
+    const runFullBtn = document.getElementById("runFullStress");
+    const detectBtn = document.getElementById("detectGateway");
+
+    if (runFullBtn) runFullBtn.addEventListener("click", runFullStressTest);
+    if (detectBtn) detectBtn.addEventListener("click", detectGateway);
+
+    document.querySelectorAll(".run-test-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        runIndividualTest(btn.dataset.test);
+      });
+    });
+  }
+
+  async function detectGateway() {
+    try {
+      const res = await fetch("/api/stress/gateway");
+      const data = await res.json();
+      if (data.status === "success") {
+        document.getElementById("stressHost").value = data.gateway;
+        showToast("Gateway detected: " + data.gateway, "success");
+      }
+    } catch (err) {
+      showToast("Failed to detect gateway", "error");
+    }
+  }
+
+  function getStressHost() {
+    return document.getElementById("stressHost").value.trim() || null;
+  }
+
+  async function runIndividualTest(testType) {
+    const host = getStressHost();
+    const param = host ? `?host=${encodeURIComponent(host)}` : "";
+    const cardMap = {
+      ping: "pingCard",
+      "rapid-ping": "rapidPingCard",
+      connections: "connCard",
+      "latency-load": "latencyCard",
+      bandwidth: "bandwidthCard",
+    };
+
+    const cardId = cardMap[testType];
+    const card = document.getElementById(cardId);
+    if (card) card.classList.add("running");
+
+    showToast(`Running ${testType} test...`, "info");
+
+    try {
+      const res = await fetch(`/api/stress/${testType}${param}`);
+      const data = await res.json();
+
+      if (data.status === "success") {
+        renderTestResult(testType, data.result, cardId);
+        showToast(`${testType} test complete`, "success");
+      } else {
+        showToast(`${testType} test failed`, "error");
+      }
+    } catch (err) {
+      showToast("Error: " + err.message, "error");
+    } finally {
+      if (card) {
+        card.classList.remove("running");
+        card.classList.add("complete");
+      }
+    }
+  }
+
+  async function runFullStressTest() {
+    const btn = document.getElementById("runFullStress");
+    const progress = document.getElementById("stressProgress");
+    const progressBar = document.getElementById("stressProgressBar");
+    const progressText = document.getElementById("stressProgressText");
+    const scoreCard = document.getElementById("stressScoreCard");
+    const host = getStressHost();
+    const param = host ? `?host=${encodeURIComponent(host)}` : "";
+
+    btn.classList.add("scanning");
+    btn.querySelector("span").textContent = "Running...";
+    progress.style.display = "block";
+    progressBar.style.width = "10%";
+    progressText.textContent = "Starting full stress test suite...";
+
+    // Animate progress
+    let pct = 10;
+    const progressInterval = setInterval(() => {
+      if (pct < 90) {
+        pct += 5;
+        progressBar.style.width = pct + "%";
+      }
+    }, 3000);
+
+    try {
+      const res = await fetch(`/api/stress/full${param}`);
+      const data = await res.json();
+
+      clearInterval(progressInterval);
+      progressBar.style.width = "100%";
+      progressText.textContent = "Tests complete!";
+
+      if (data.status === "success") {
+        const result = data.result;
+
+        // Render individual test results
+        if (result.tests.ping) renderTestResult("ping", result.tests.ping, "pingCard");
+        if (result.tests.rapid_ping) renderTestResult("rapid-ping", result.tests.rapid_ping, "rapidPingCard");
+        if (result.tests.concurrent_connections) renderTestResult("connections", result.tests.concurrent_connections, "connCard");
+        if (result.tests.latency_under_load) renderTestResult("latency-load", result.tests.latency_under_load, "latencyCard");
+        if (result.tests.bandwidth) renderTestResult("bandwidth", result.tests.bandwidth, "bandwidthCard");
+
+        // Render score
+        if (result.score) {
+          renderScoreCard(result.score);
+        }
+
+        showToast(
+          `Stress test complete! Score: ${result.score.score}/100 (${result.score.grade})`,
+          result.score.score >= 60 ? "success" : "error"
+        );
+      }
+    } catch (err) {
+      clearInterval(progressInterval);
+      showToast("Stress test failed: " + err.message, "error");
+    } finally {
+      btn.classList.remove("scanning");
+      btn.querySelector("span").textContent = "Run Full Stress Test";
+      setTimeout(() => {
+        progress.style.display = "none";
+      }, 3000);
+    }
+  }
+
+  function renderTestResult(testType, result, cardId) {
+    const card = document.getElementById(cardId);
+    if (!card) return;
+    const body = card.querySelector(".stress-card-body");
+
+    card.classList.remove("running");
+    card.classList.add("complete");
+
+    switch (testType) {
+      case "ping":
+        body.innerHTML = `
+          <div class="stress-result-grid">
+            <div class="stress-result-item">
+              <span class="stress-result-label">Avg Latency</span>
+              <span class="stress-result-value ${result.avg_ms <= 10 ? "good" : result.avg_ms <= 50 ? "warn" : "bad"}">${result.avg_ms} ms</span>
+            </div>
+            <div class="stress-result-item">
+              <span class="stress-result-label">Packet Loss</span>
+              <span class="stress-result-value ${result.loss_percent === 0 ? "good" : result.loss_percent <= 5 ? "warn" : "bad"}">${result.loss_percent}%</span>
+            </div>
+            <div class="stress-result-item">
+              <span class="stress-result-label">Min / Max</span>
+              <span class="stress-result-value">${result.min_ms} / ${result.max_ms} ms</span>
+            </div>
+            <div class="stress-result-item">
+              <span class="stress-result-label">Jitter</span>
+              <span class="stress-result-value ${result.jitter_ms <= 5 ? "good" : result.jitter_ms <= 20 ? "warn" : "bad"}">${result.jitter_ms} ms</span>
+            </div>
+          </div>`;
+        break;
+
+      case "rapid-ping":
+        body.innerHTML = `
+          <div class="stress-result-grid">
+            <div class="stress-result-item">
+              <span class="stress-result-label">Avg Latency</span>
+              <span class="stress-result-value ${result.avg_ms <= 15 ? "good" : result.avg_ms <= 50 ? "warn" : "bad"}">${result.avg_ms} ms</span>
+            </div>
+            <div class="stress-result-item">
+              <span class="stress-result-label">Packet Loss</span>
+              <span class="stress-result-value ${result.loss_percent <= 2 ? "good" : result.loss_percent <= 10 ? "warn" : "bad"}">${result.loss_percent}%</span>
+            </div>
+            <div class="stress-result-item">
+              <span class="stress-result-label">Sent / Received</span>
+              <span class="stress-result-value">${result.sent} / ${result.received}</span>
+            </div>
+            <div class="stress-result-item">
+              <span class="stress-result-label">Jitter</span>
+              <span class="stress-result-value ${result.jitter_ms <= 10 ? "good" : result.jitter_ms <= 30 ? "warn" : "bad"}">${result.jitter_ms} ms</span>
+            </div>
+          </div>`;
+        break;
+
+      case "connections":
+        body.innerHTML = `
+          <div class="stress-result-grid">
+            <div class="stress-result-item">
+              <span class="stress-result-label">Successful</span>
+              <span class="stress-result-value good">${result.successful_connections}</span>
+            </div>
+            <div class="stress-result-item">
+              <span class="stress-result-label">Failed</span>
+              <span class="stress-result-value ${result.failed_connections === 0 ? "good" : "warn"}">${result.failed_connections}</span>
+            </div>
+            <div class="stress-result-item">
+              <span class="stress-result-label">Avg Connect Time</span>
+              <span class="stress-result-value">${result.avg_connect_time_ms} ms</span>
+            </div>
+            <div class="stress-result-item">
+              <span class="stress-result-label">Max Attempted</span>
+              <span class="stress-result-value">${result.max_attempted}</span>
+            </div>
+          </div>`;
+        break;
+
+      case "latency-load":
+        body.innerHTML = `
+          <div class="stress-result-grid">
+            <div class="stress-result-item">
+              <span class="stress-result-label">Baseline Latency</span>
+              <span class="stress-result-value">${result.baseline_latency_ms} ms</span>
+            </div>
+            <div class="stress-result-item">
+              <span class="stress-result-label">Under Load</span>
+              <span class="stress-result-value ${result.loaded_latency_avg_ms <= result.baseline_latency_ms * 1.5 ? "good" : "warn"}">${result.loaded_latency_avg_ms} ms</span>
+            </div>
+            <div class="stress-result-item">
+              <span class="stress-result-label">Degradation</span>
+              <span class="stress-result-value ${Math.abs(result.latency_degradation_percent) <= 25 ? "good" : Math.abs(result.latency_degradation_percent) <= 50 ? "warn" : "bad"}">${result.latency_degradation_percent}%</span>
+            </div>
+            <div class="stress-result-item">
+              <span class="stress-result-label">Jitter Under Load</span>
+              <span class="stress-result-value">${result.loaded_jitter_ms} ms</span>
+            </div>
+          </div>`;
+        break;
+
+      case "bandwidth":
+        body.innerHTML = `
+          <div class="stress-result-grid">
+            <div class="stress-result-item">
+              <span class="stress-result-label">Est. Throughput</span>
+              <span class="stress-result-value good">${result.estimated_max_throughput_mbps} Mbps</span>
+            </div>
+            <div class="stress-result-item">
+              <span class="stress-result-label">Packet Tests</span>
+              <span class="stress-result-value">${result.packet_tests ? result.packet_tests.length : 0}</span>
+            </div>
+            ${
+              result.packet_tests && result.packet_tests.length > 0
+                ? `<div class="stress-result-item" style="grid-column: 1 / -1;">
+                <span class="stress-result-label">Breakdown</span>
+                <span class="stress-result-value" style="font-size:0.75rem">${result.packet_tests.map((t) => `${t.packet_size}B: ${t.avg_latency_ms}ms`).join(" | ")}</span>
+              </div>`
+                : ""
+            }
+          </div>`;
+        break;
+    }
+  }
+
+  function renderScoreCard(score) {
+    const scoreCard = document.getElementById("stressScoreCard");
+    const scoreCircle = document.getElementById("scoreCircle");
+    const scoreValue = document.getElementById("scoreValue");
+    const scoreGrade = document.getElementById("scoreGrade");
+    const scoreBreakdown = document.getElementById("scoreBreakdown");
+
+    scoreCard.style.display = "flex";
+    scoreValue.textContent = score.score;
+
+    // Grade styling
+    const gradeClass = score.grade.startsWith("A")
+      ? "grade-a"
+      : score.grade.startsWith("B")
+        ? "grade-b"
+        : score.grade.startsWith("C")
+          ? "grade-c"
+          : score.grade.startsWith("D")
+            ? "grade-d"
+            : "grade-f";
+
+    scoreCircle.className = "score-circle " + gradeClass;
+    scoreGrade.textContent = `Grade: ${score.grade}`;
+    scoreGrade.style.color =
+      gradeClass === "grade-a"
+        ? "var(--success)"
+        : gradeClass === "grade-b"
+          ? "var(--info)"
+          : gradeClass === "grade-c"
+            ? "var(--warning)"
+            : "var(--danger)";
+
+    const details = score.details || {};
+    scoreBreakdown.innerHTML = `
+      <div class="score-breakdown-item">
+        <span class="score-breakdown-label">Ping Quality</span>
+        <span class="score-breakdown-value">${details.ping_quality_score || 0}/25</span>
+      </div>
+      <div class="score-breakdown-item">
+        <span class="score-breakdown-label">Packet Loss</span>
+        <span class="score-breakdown-value">${details.packet_loss_score || 0}/25</span>
+      </div>
+      <div class="score-breakdown-item">
+        <span class="score-breakdown-label">Rapid Ping</span>
+        <span class="score-breakdown-value">${details.rapid_ping_score || 0}/25</span>
+      </div>
+      <div class="score-breakdown-item">
+        <span class="score-breakdown-label">Load Resilience</span>
+        <span class="score-breakdown-value">${details.load_resilience_score || 0}/25</span>
+      </div>`;
+  }
+
   // Boot
-  document.addEventListener("DOMContentLoaded", init);
+  document.addEventListener("DOMContentLoaded", function () {
+    init();
+    initStressTest();
+  });
 })();
