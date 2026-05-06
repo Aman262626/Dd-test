@@ -10,8 +10,18 @@ import platform
 import re
 import socket
 import subprocess
+import threading
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
+
+
+# Throttle mode labels
+THROTTLE_MODES = {
+    "slow": {"download_kbps": 128, "upload_kbps": 64, "label": "Slow (128/64 Kbps)"},
+    "very_slow": {"download_kbps": 32, "upload_kbps": 16, "label": "Very Slow (32/16 Kbps)"},
+    "pause": {"download_kbps": 1, "upload_kbps": 1, "label": "Paused (1/1 Kbps)"},
+    "custom": {"download_kbps": 0, "upload_kbps": 0, "label": "Custom"},
+}
 
 
 @dataclass
@@ -23,11 +33,16 @@ class ConnectedDevice:
     status: str  # "online" / "offline"
     speed_limit_down: int  # Kbps, 0 = unlimited
     speed_limit_up: int  # Kbps, 0 = unlimited
+    throttle_mode: str = ""  # "", "slow", "very_slow", "pause"
+    throttle_expires: str = ""  # ISO timestamp when throttle auto-expires
     first_seen: str = field(default_factory=lambda: datetime.utcnow().isoformat())
     last_seen: str = field(default_factory=lambda: datetime.utcnow().isoformat())
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        d = asdict(self)
+        d["is_throttled"] = self.throttle_mode != ""
+        d["throttle_label"] = THROTTLE_MODES.get(self.throttle_mode, {}).get("label", "Unlimited")
+        return d
 
 
 # In-memory device registry and speed rules
@@ -105,6 +120,8 @@ def discover_devices() -> list[ConnectedDevice]:
             existing = device_registry[dev.mac]
             dev.speed_limit_down = existing.speed_limit_down
             dev.speed_limit_up = existing.speed_limit_up
+            dev.throttle_mode = existing.throttle_mode
+            dev.throttle_expires = existing.throttle_expires
             dev.first_seen = existing.first_seen
         dev.last_seen = now
         device_registry[dev.mac] = dev
@@ -417,6 +434,121 @@ def _get_main_interface() -> str | None:
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
     return None
+
+
+# Timer registry for auto-restore
+_active_timers: dict[str, threading.Timer] = {}
+
+
+def throttle_device(mac: str, mode: str, duration_seconds: int = 0) -> dict:
+    """Quick throttle a device.
+
+    Modes: slow (128/64), very_slow (32/16), pause (1/1)
+    If duration_seconds > 0, auto-restores after that time.
+    """
+    mac = mac.upper()
+
+    if mac not in device_registry:
+        return {"status": "error", "message": f"Device {mac} not found. Run discovery first."}
+
+    if mode not in THROTTLE_MODES:
+        return {"status": "error", "message": f"Invalid mode. Use: {', '.join(THROTTLE_MODES.keys())}"}
+
+    preset = THROTTLE_MODES[mode]
+    device = device_registry[mac]
+
+    result = set_speed_limit(mac, preset["download_kbps"], preset["upload_kbps"])
+    if result["status"] != "success":
+        return result
+
+    device.throttle_mode = mode
+    expires = ""
+
+    # Cancel any existing timer
+    if mac in _active_timers:
+        _active_timers[mac].cancel()
+        del _active_timers[mac]
+
+    # Set auto-restore timer if duration specified
+    if duration_seconds > 0:
+        from datetime import timedelta
+        expire_time = datetime.utcnow() + timedelta(seconds=duration_seconds)
+        expires = expire_time.isoformat()
+        device.throttle_expires = expires
+
+        timer = threading.Timer(duration_seconds, _auto_restore, args=[mac])
+        timer.daemon = True
+        timer.start()
+        _active_timers[mac] = timer
+
+    duration_label = f" for {_format_duration(duration_seconds)}" if duration_seconds > 0 else ""
+    return {
+        "status": "success",
+        "mac": mac,
+        "mode": mode,
+        "label": preset["label"],
+        "duration_seconds": duration_seconds,
+        "expires": expires,
+        "message": f"{device.hostname or device.ip} set to {preset['label']}{duration_label}",
+    }
+
+
+def _auto_restore(mac: str) -> None:
+    """Auto-restore callback triggered by timer."""
+    mac = mac.upper()
+    if mac in device_registry:
+        device = device_registry[mac]
+        device.speed_limit_down = 0
+        device.speed_limit_up = 0
+        device.throttle_mode = ""
+        device.throttle_expires = ""
+
+    if mac in speed_rules:
+        ip = speed_rules[mac]["ip"]
+        del speed_rules[mac]
+        _remove_tc_rule(ip)
+
+    if mac in _active_timers:
+        del _active_timers[mac]
+
+
+def restore_device(mac: str) -> dict:
+    """Immediately restore a device to full speed."""
+    mac = mac.upper()
+
+    # Cancel timer if exists
+    if mac in _active_timers:
+        _active_timers[mac].cancel()
+        del _active_timers[mac]
+
+    if mac in device_registry:
+        device = device_registry[mac]
+        device.throttle_mode = ""
+        device.throttle_expires = ""
+
+    result = remove_speed_limit(mac)
+    result["message"] = "Device restored to full speed"
+    return result
+
+
+def _format_duration(seconds: int) -> str:
+    if seconds < 60:
+        return f"{seconds}s"
+    elif seconds < 3600:
+        return f"{seconds // 60}m"
+    else:
+        h = seconds // 3600
+        m = (seconds % 3600) // 60
+        return f"{h}h {m}m" if m else f"{h}h"
+
+
+def get_throttle_modes() -> list[dict]:
+    """Get available throttle modes."""
+    return [
+        {"id": k, **v}
+        for k, v in THROTTLE_MODES.items()
+        if k != "custom"
+    ]
 
 
 def get_bandwidth_summary() -> dict:

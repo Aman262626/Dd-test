@@ -32,8 +32,11 @@ from bandwidth_manager import (
     get_all_rules,
     get_bandwidth_summary,
     get_device_list,
+    get_throttle_modes,
     remove_speed_limit,
+    restore_device,
     set_speed_limit,
+    throttle_device,
 )
 
 app = FastAPI(
@@ -380,6 +383,33 @@ async def api_devices_summary():
     """Get bandwidth management summary."""
     summary = get_bandwidth_summary()
     return {"status": "success", "summary": summary}
+
+
+@app.post("/api/devices/{mac}/throttle")
+async def api_throttle_device(
+    mac: str,
+    mode: str = Query(default="slow"),
+    duration: int = Query(default=0, ge=0, le=86400),
+):
+    """Quick throttle a device. Modes: slow, very_slow, pause.
+    Duration in seconds (0 = permanent until manually restored).
+    """
+    result = throttle_device(mac, mode, duration)
+    return result
+
+
+@app.post("/api/devices/{mac}/restore")
+async def api_restore_device(mac: str):
+    """Restore a device to full speed immediately."""
+    result = restore_device(mac)
+    return result
+
+
+@app.get("/api/devices/throttle-modes")
+async def api_throttle_modes():
+    """Get available throttle modes."""
+    modes = get_throttle_modes()
+    return {"status": "success", "modes": modes}
 
 
 if __name__ == "__main__":

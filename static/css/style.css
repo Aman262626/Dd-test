@@ -1245,6 +1245,75 @@ body {
 
 .device-actions .btn { font-size: 0.75rem; padding: 4px 10px; }
 
+.btn-warning {
+    background: var(--warning);
+    color: #fff;
+    border: none;
+}
+
+.btn-warning:hover { opacity: 0.85; }
+
+.btn-danger {
+    background: var(--danger);
+    color: #fff;
+    border: none;
+}
+
+.btn-danger:hover { opacity: 0.85; }
+
+.btn-xs { font-size: 0.68rem !important; padding: 2px 7px !important; }
+
+.device-card.throttled {
+    border-color: var(--danger);
+}
+
+.device-card.throttled::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--danger);
+    border-radius: var(--radius) 0 0 var(--radius);
+}
+
+.device-throttle-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.throttle-badge {
+    font-size: 0.75rem;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-weight: 600;
+    background: rgba(239,68,68,0.15);
+    color: var(--danger);
+    font-family: var(--font-mono);
+}
+
+.throttle-timer {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+}
+
+.timer-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-right: 4px;
+}
+
+.device-timer-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
 /* Speed Modal */
 .speed-form { display: flex; flex-direction: column; gap: 14px; }
 

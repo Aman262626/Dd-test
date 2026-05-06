@@ -1094,8 +1094,12 @@
         const ulLabel = dev.speed_limit_up > 0 ? formatSpeed(dev.speed_limit_up) : "Unlimited";
         const displayName = dev.hostname || dev.ip;
 
+        const throttled = dev.is_throttled;
+        const throttleLabel = dev.throttle_label || "";
+        const expiresInfo = dev.throttle_expires ? `Expires: ${new Date(dev.throttle_expires).toLocaleTimeString()}` : "";
+
         return `
-          <div class="device-card ${dev.status} ${limitClass}">
+          <div class="device-card ${dev.status} ${throttled ? "throttled" : limitClass}">
             <div class="device-header">
               <span class="device-name" title="${escapeHtml(displayName)}">${escapeHtml(displayName)}</span>
               <span class="device-status ${dev.status}">
@@ -1117,10 +1121,14 @@
                 <span class="device-detail-value">${escapeHtml(dev.vendor)}</span>
               </div>
               <div class="device-detail">
-                <span class="device-detail-label">Speed</span>
-                <span class="device-detail-value">${isLimited ? "Limited" : "Full"}</span>
+                <span class="device-detail-label">Status</span>
+                <span class="device-detail-value">${throttled ? throttleLabel : (isLimited ? "Limited" : "Full Speed")}</span>
               </div>
             </div>
+            ${throttled ? `<div class="device-throttle-info">
+              <span class="throttle-badge">${throttleLabel}</span>
+              ${expiresInfo ? `<span class="throttle-timer">${expiresInfo}</span>` : ""}
+            </div>` : ""}
             <div class="device-speed-info">
               <span class="device-speed-badge ${isLimited ? "limited" : "unlimited"}">
                 DL: ${dlLabel}
@@ -1130,10 +1138,23 @@
               </span>
             </div>
             <div class="device-actions">
-              <button class="btn btn-primary btn-sm" onclick="window.__openSpeedModal('${escapeHtml(dev.mac)}', '${escapeHtml(displayName)}', ${dev.speed_limit_down}, ${dev.speed_limit_up})">
-                Set Speed
-              </button>
-              ${isLimited ? `<button class="btn btn-outline btn-sm" onclick="window.__removeSpeed('${escapeHtml(dev.mac)}')">Remove Limit</button>` : ""}
+              ${!throttled ? `
+                <button class="btn btn-warning btn-sm" onclick="window.__throttle('${escapeHtml(dev.mac)}', 'slow')" title="Slow Down (128 Kbps)">Slow</button>
+                <button class="btn btn-danger btn-sm" onclick="window.__throttle('${escapeHtml(dev.mac)}', 'very_slow')" title="Very Slow (32 Kbps)">Very Slow</button>
+                <button class="btn btn-danger btn-sm" onclick="window.__throttle('${escapeHtml(dev.mac)}', 'pause')" title="Pause Internet (1 Kbps)">Pause</button>
+              ` : `
+                <button class="btn btn-primary btn-sm" onclick="window.__restoreDevice('${escapeHtml(dev.mac)}')">Restore Full Speed</button>
+              `}
+              <button class="btn btn-outline btn-sm" onclick="window.__openSpeedModal('${escapeHtml(dev.mac)}', '${escapeHtml(displayName)}', ${dev.speed_limit_down}, ${dev.speed_limit_up})">Custom</button>
+            </div>
+            <div class="device-timer-actions" style="margin-top:6px;">
+              ${!throttled ? `
+                <span class="timer-label">Timed throttle:</span>
+                <button class="btn btn-outline btn-xs" onclick="window.__throttleTimed('${escapeHtml(dev.mac)}', 'slow', 60)">Slow 1m</button>
+                <button class="btn btn-outline btn-xs" onclick="window.__throttleTimed('${escapeHtml(dev.mac)}', 'slow', 300)">Slow 5m</button>
+                <button class="btn btn-outline btn-xs" onclick="window.__throttleTimed('${escapeHtml(dev.mac)}', 'pause', 60)">Pause 1m</button>
+                <button class="btn btn-outline btn-xs" onclick="window.__throttleTimed('${escapeHtml(dev.mac)}', 'pause', 300)">Pause 5m</button>
+              ` : ""}
             </div>
           </div>`;
       })
@@ -1202,9 +1223,70 @@
     }
   }
 
+  async function throttleDeviceAction(mac, mode) {
+    showToast(`Throttling device (${mode})...`, "info");
+    try {
+      const res = await fetch(
+        `/api/devices/${encodeURIComponent(mac)}/throttle?mode=${mode}`,
+        { method: "POST" }
+      );
+      const data = await res.json();
+      if (data.status === "success") {
+        showToast(data.message, "success");
+        discoverDevicesAction();
+      } else {
+        showToast(data.message || "Failed", "error");
+      }
+    } catch (err) {
+      showToast("Error: " + err.message, "error");
+    }
+  }
+
+  async function throttleTimedAction(mac, mode, duration) {
+    const durationLabel = duration < 60 ? `${duration}s` : `${duration / 60}m`;
+    showToast(`Throttling device (${mode}) for ${durationLabel}...`, "info");
+    try {
+      const res = await fetch(
+        `/api/devices/${encodeURIComponent(mac)}/throttle?mode=${mode}&duration=${duration}`,
+        { method: "POST" }
+      );
+      const data = await res.json();
+      if (data.status === "success") {
+        showToast(data.message, "success");
+        discoverDevicesAction();
+      } else {
+        showToast(data.message || "Failed", "error");
+      }
+    } catch (err) {
+      showToast("Error: " + err.message, "error");
+    }
+  }
+
+  async function restoreDeviceAction(mac) {
+    showToast("Restoring device to full speed...", "info");
+    try {
+      const res = await fetch(
+        `/api/devices/${encodeURIComponent(mac)}/restore`,
+        { method: "POST" }
+      );
+      const data = await res.json();
+      if (data.status === "success") {
+        showToast(data.message, "success");
+        discoverDevicesAction();
+      } else {
+        showToast(data.message || "Failed", "error");
+      }
+    } catch (err) {
+      showToast("Error: " + err.message, "error");
+    }
+  }
+
   // Expose to global for onclick handlers
   window.__openSpeedModal = openSpeedModal;
   window.__removeSpeed = removeSpeedForMac;
+  window.__throttle = throttleDeviceAction;
+  window.__throttleTimed = throttleTimedAction;
+  window.__restoreDevice = restoreDeviceAction;
 
   // Boot
   document.addEventListener("DOMContentLoaded", function () {
